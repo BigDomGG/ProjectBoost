@@ -1,118 +1,109 @@
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-public class Movement : MonoBehaviour
+public class CollisionHandler : MonoBehaviour
 {
-    [SerializeField] float mainThrust = 100f;
-    [SerializeField] float rotationThrust = 1f;
-    [SerializeField] AudioClip mainEngine;
+    [SerializeField] float levelLoadDelay = 2f;
 
-    [SerializeField] ParticleSystem mainEngineParticles;
-    [SerializeField] ParticleSystem engine1Particles;
-    [SerializeField] ParticleSystem engine2Particles;
-    [SerializeField] ParticleSystem engine3Particles;
-    [SerializeField] ParticleSystem engine4Particles;
+    //Audio
+    [SerializeField] AudioClip crashOnCollision;
+    [SerializeField] AudioClip landSuccess;
 
-    Rigidbody rb;
+    //Particles
+    [SerializeField] ParticleSystem crashOnCollisionParticles;
+    [SerializeField] ParticleSystem landSuccessParticles;
+
     AudioSource audioSource;
 
-    // Start is called before the first frame update
-    void Start()
+    bool isTransitioning = false;
+    bool collisionDisabled = false;
+
+    void Start() 
     {
-        rb = GetComponent<Rigidbody>();
         audioSource = GetComponent<AudioSource>();
     }
-
-    // Update is called once per frame
-    void Update()
+    
+    void Update() 
     {
-        ProcessThrust();
-        ProcessRotation();
+        RespondToDebugKeys();
     }
 
-    void ProcessThrust()
+    void RespondToDebugKeys()
     {
-        if (Input.GetKey(KeyCode.Space))
+        if(Input.GetKeyDown(KeyCode.L))
         {
-            StartThrusting();
+            LoadNextLevel();
         }
-        else
+        else if (Input.GetKeyDown(KeyCode.C))
         {
-            audioSource.Stop();
-            mainEngineParticles.Stop();
+            collisionDisabled = !collisionDisabled;
         }
     }
 
-    void StartThrusting()
+    void OnCollisionEnter(Collision other) 
     {
-        rb.AddRelativeForce(Vector3.up * mainThrust * Time.deltaTime);
-        if (!audioSource.isPlaying)
-        {
-            audioSource.PlayOneShot(mainEngine);
-        }
+        if (isTransitioning || collisionDisabled) { return; }
 
-        if (!mainEngineParticles.isPlaying)
-        {
-            mainEngineParticles.Play();
-        }
+        switch (other.gameObject.tag)
+            {
+                case "Friendly":
+                    Debug.Log("This thing is friendly");
+                    break;
+                
+                case "Finish":
+                    StartSuccessSequence();
+                    break;
+
+                default:
+                    StartCrashSequence();
+                    break;
+            }
     }
 
-    void ProcessRotation() 
+    void StartSuccessSequence()
     {
-        if (Input.GetKey(KeyCode.A))
-        {
-            LeftRotationThrust();
-        }
+        isTransitioning = true;
 
-        else if (Input.GetKey(KeyCode.D))
-        {
-            RightRotationThrust();
-        }
+        audioSource.Stop();
+        audioSource.PlayOneShot(landSuccess);
 
-        else
-        {
-            engine1Particles.Stop();
-            engine2Particles.Stop();
-            engine3Particles.Stop();
-            engine4Particles.Stop();
-        }
-    }
+        landSuccessParticles.Play();
 
-    void RightRotationThrust()
-    {
-        ApplyRotation(-rotationThrust);
-
-        if (!engine1Particles.isPlaying)
-        {
-            engine1Particles.Play();
-        }
-
-        if (!engine3Particles.isPlaying)
-        {
-            engine3Particles.Play();
-        }
+        GetComponent<Movement>().enabled = false;
+        Invoke("LoadNextLevel", levelLoadDelay);
 
     }
 
-    void LeftRotationThrust()
+    void StartCrashSequence()
     {
-        ApplyRotation(rotationThrust);
+        isTransitioning = true;
 
-        if (!engine2Particles.isPlaying)
-        {
-            engine2Particles.Play();
-        }
+        audioSource.Stop();
+        audioSource.PlayOneShot(crashOnCollision);
 
-        if (!engine4Particles.isPlaying)
-        {
-            engine4Particles.Play();
-        }
+        crashOnCollisionParticles.Play();
+
+        GetComponent<Movement>().enabled = false;
+        Invoke("ReloadLevel", levelLoadDelay);
     }
 
-    void ApplyRotation(float rotationThisFrame)
+    void ReloadLevel()
     {
-        rb.freezeRotation = true; // freeze rotation to manually rotate
-        transform.Rotate(Vector3.forward * rotationThisFrame * Time.deltaTime);
-        rb.freezeRotation = false; // unfreeze rotation for physics engine
+        int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
+
+        SceneManager.LoadScene(currentSceneIndex);
+    }
+    void LoadNextLevel()
+    {
+        int currentSceneIndex = SceneManager.GetActiveScene().buildIndex;
+        int nextSceneIndex = currentSceneIndex + 1;
+
+        if (nextSceneIndex == SceneManager.sceneCountInBuildSettings)
+
+        {
+            nextSceneIndex = 0;
+        }
+
+        SceneManager.LoadScene(nextSceneIndex);
     }
 }
